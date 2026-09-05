@@ -65,7 +65,7 @@ class HomeScreen extends StatelessWidget {
               FilledButton.icon(
                 onPressed: () => _navigateToEditScreen(context, 'Camera'),
                 icon: const Icon(Icons.photo_camera),
-                label: const Text('Take a Photo (Signboard Mock)'),
+                label: const Text('Take a Photo '),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
@@ -74,7 +74,7 @@ class HomeScreen extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: () => _navigateToEditScreen(context, 'Gallery'),
                 icon: const Icon(Icons.photo_library),
-                label: const Text('Choose from Gallery (Notice Mock)'),
+                label: const Text('Choose from Gallery '),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),

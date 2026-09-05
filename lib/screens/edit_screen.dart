@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+enum TranslationMode {
+  hindiToEnglish,
+  englishToHindi,
+}
+
 class EditScreen extends StatefulWidget {
   final String initialHindiText;
   final String sourceType;
@@ -17,6 +22,7 @@ class EditScreen extends StatefulWidget {
 class _EditScreenState extends State<EditScreen> {
   late final TextEditingController _textController;
   bool _isTranslating = false;
+  TranslationMode _mode = TranslationMode.hindiToEnglish;
 
   @override
   void initState() {
@@ -30,12 +36,26 @@ class _EditScreenState extends State<EditScreen> {
     super.dispose();
   }
 
+  void _switchDirection(TranslationMode newMode) {
+    if (_mode == newMode) return;
+    setState(() {
+      _mode = newMode;
+      if (_mode == TranslationMode.englishToHindi) {
+        _textController.text = (widget.sourceType == 'Camera')
+            ? 'Please do not throw garbage here. Maintain cleanliness.'
+            : 'This public notice is important for all citizens.';
+      } else {
+        _textController.text = widget.initialHindiText;
+      }
+    });
+  }
+
   void _submitForTranslation() {
     final trimmedText = _textController.text.trim();
     if (trimmedText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Hindi text cannot be empty. Please verify or re-enter.'),
+          content: Text('Input text cannot be empty. Please verify or re-enter.'),
         ),
       );
       return;
@@ -45,23 +65,30 @@ class _EditScreenState extends State<EditScreen> {
       _isTranslating = true;
     });
 
-    // Simulated network delay to cloud VM running IndicTrans2
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
       setState(() {
         _isTranslating = false;
       });
 
-      // Distinct English outputs based on source sample
-      final englishOutput = (widget.sourceType == 'Camera')
-          ? 'Please do not throw garbage here. Maintain cleanliness.'
-          : 'This public notice is important for all citizens.';
+      String outputText;
+      if (_mode == TranslationMode.hindiToEnglish) {
+        outputText = (widget.sourceType == 'Camera')
+            ? 'Please do not throw garbage here. Maintain cleanliness.'
+            : 'This public notice is important for all citizens.';
+      } else {
+        outputText = (widget.sourceType == 'Camera')
+            ? 'कृपया यहाँ कूड़ा न फेंकें। स्वच्छता बनाए रखें।'
+            : 'यह सार्वजनिक सूचना सभी नागरिकों के लिए महत्वपूर्ण है।';
+      }
 
-      _showTranslationModal(trimmedText, englishOutput);
+      _showTranslationModal(trimmedText, outputText);
     });
   }
 
-  void _showTranslationModal(String sourceHindi, String targetEnglish) {
+  void _showTranslationModal(String sourceText, String targetText) {
+    final isH2E = _mode == TranslationMode.hindiToEnglish;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -84,25 +111,22 @@ class _EditScreenState extends State<EditScreen> {
                       ),
                 ),
                 Chip(
-                  label: Text(widget.sourceType),
+                  label: Text(isH2E ? 'Hindi → English' : 'English → Hindi'),
                   visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Verified Hindi Input:',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            Text(
+              isH2E ? 'Verified Hindi Input:' : 'Verified English Input:',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            Text(
-              sourceHindi,
-              style: const TextStyle(fontSize: 14),
-            ),
+            Text(sourceText, style: const TextStyle(fontSize: 14)),
             const Divider(height: 24),
-            const Text(
-              'English Translation (IndicTrans2):',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            Text(
+              isH2E ? 'English Translation (IndicTrans2):' : 'Hindi Translation (IndicTrans2):',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Container(
@@ -112,7 +136,7 @@ class _EditScreenState extends State<EditScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                targetEnglish,
+                targetText,
                 style: TextStyle(
                   fontSize: 14,
                   color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -133,6 +157,8 @@ class _EditScreenState extends State<EditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isH2E = _mode == TranslationMode.hindiToEnglish;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Verify Extracted Text'),
@@ -144,14 +170,36 @@ class _EditScreenState extends State<EditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Segmented Button to switch direction
+              SegmentedButton<TranslationMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: TranslationMode.hindiToEnglish,
+                    label: Text('Hindi → English'),
+                    icon: Icon(Icons.sync_alt),
+                  ),
+                  ButtonSegment(
+                    value: TranslationMode.englishToHindi,
+                    label: Text('English → Hindi'),
+                    icon: Icon(Icons.sync_alt),
+                  ),
+                ],
+                selected: {_mode},
+                onSelectionChanged: (newSelection) {
+                  _switchDirection(newSelection.first);
+                },
+              ),
+              const SizedBox(height: 12),
               Card(
                 elevation: 0,
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: const Padding(
-                  padding: EdgeInsets.all(12.0),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
                   child: Text(
-                    'Tesseract OCR output may contain character ambiguities. Inspect and correct the Devanagari text below before running machine translation.',
-                    style: TextStyle(fontSize: 12),
+                    isH2E
+                        ? 'Tesseract OCR output may contain character ambiguities. Inspect and correct the Devanagari text before running machine translation.'
+                        : 'Inspect and verify extracted English text before running machine translation into Hindi.',
+                    style: const TextStyle(fontSize: 12),
                   ),
                 ),
               ),
@@ -163,7 +211,7 @@ class _EditScreenState extends State<EditScreen> {
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
                   decoration: InputDecoration(
-                    labelText: 'Extracted Hindi Text',
+                    labelText: isH2E ? 'Extracted Hindi Text' : 'Extracted English Text',
                     alignLabelWithHint: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -179,7 +227,7 @@ class _EditScreenState extends State<EditScreen> {
                 FilledButton.icon(
                   onPressed: _submitForTranslation,
                   icon: const Icon(Icons.translate),
-                  label: const Text('Translate to English'),
+                  label: Text(isH2E ? 'Translate to English' : 'Translate to Hindi'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),

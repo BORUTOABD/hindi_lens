@@ -37,7 +37,7 @@ dependencies:
   camera: ^0.12.1
   image_picker: ^1.2.3
   image_cropper: ^12.2.1
-
+  http: ^1.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

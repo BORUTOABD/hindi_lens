@@ -1,18 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
-
-enum TranslationMode {
-  hindiToEnglish,
-  englishToHindi,
-}
+import '../services/api_service.dart';
 
 class EditScreen extends StatefulWidget {
-  final String initialHindiText;
-  final String sourceType;
+  final File imageFile;
 
   const EditScreen({
     super.key,
-    required this.initialHindiText,
-    required this.sourceType,
+    required this.imageFile,
   });
 
   @override
@@ -20,14 +15,15 @@ class EditScreen extends StatefulWidget {
 }
 
 class _EditScreenState extends State<EditScreen> {
-  late final TextEditingController _textController;
-  bool _isTranslating = false;
-  TranslationMode _mode = TranslationMode.hindiToEnglish;
+  final TextEditingController _textController = TextEditingController();
+  bool _isLoading = false;
+  String _englishTranslation = '';
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _textController = TextEditingController(text: widget.initialHindiText);
+    _fetchOcrAndTranslation();
   }
 
   @override
@@ -36,59 +32,34 @@ class _EditScreenState extends State<EditScreen> {
     super.dispose();
   }
 
-  void _switchDirection(TranslationMode newMode) {
-    if (_mode == newMode) return;
+  Future<void> _fetchOcrAndTranslation() async {
     setState(() {
-      _mode = newMode;
-      if (_mode == TranslationMode.englishToHindi) {
-        _textController.text = (widget.sourceType == 'Camera')
-            ? 'Please do not throw garbage here. Maintain cleanliness.'
-            : 'This public notice is important for all citizens.';
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await ApiService.translateImage(widget.imageFile);
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = false;
+      if (result.error != null && result.error!.isNotEmpty) {
+        _errorMessage = result.error;
+      } else if (result.hindiText.isEmpty) {
+        _errorMessage = 'No readable Hindi text was found. Please try another image or crop.';
       } else {
-        _textController.text = widget.initialHindiText;
+        _textController.text = result.hindiText;
+        _englishTranslation = result.englishText;
       }
     });
-  }
 
-  void _submitForTranslation() {
-    final trimmedText = _textController.text.trim();
-    if (trimmedText.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Input text cannot be empty. Please verify or re-enter.'),
-        ),
-      );
-      return;
+    if (_errorMessage == null && _englishTranslation.isNotEmpty) {
+      _showTranslationModal();
     }
-
-    setState(() {
-      _isTranslating = true;
-    });
-
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      setState(() {
-        _isTranslating = false;
-      });
-
-      String outputText;
-      if (_mode == TranslationMode.hindiToEnglish) {
-        outputText = (widget.sourceType == 'Camera')
-            ? 'Please do not throw garbage here. Maintain cleanliness.'
-            : 'This public notice is important for all citizens.';
-      } else {
-        outputText = (widget.sourceType == 'Camera')
-            ? 'कृपया यहाँ कूड़ा न फेंकें। स्वच्छता बनाए रखें।'
-            : 'यह सार्वजनिक सूचना सभी नागरिकों के लिए महत्वपूर्ण है।';
-      }
-
-      _showTranslationModal(trimmedText, outputText);
-    });
   }
 
-  void _showTranslationModal(String sourceText, String targetText) {
-    final isH2E = _mode == TranslationMode.hindiToEnglish;
-
+  void _showTranslationModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -110,25 +81,28 @@ class _EditScreenState extends State<EditScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                 ),
-                Chip(
-                  label: Text(isH2E ? 'Hindi → English' : 'English → Hindi'),
+                const Chip(
+                  label: Text('Hindi → English'),
                   visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            Text(
-              isH2E ? 'Verified Hindi Input:' : 'Verified English Input:',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            const Text(
+              'Extracted Hindi Text:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            Text(sourceText, style: const TextStyle(fontSize: 14)),
+            Text(
+              _textController.text,
+              style: const TextStyle(fontSize: 15),
+            ),
             const Divider(height: 24),
-            Text(
-              isH2E ? 'English Translation (IndicTrans2):' : 'Hindi Translation (IndicTrans2):',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            const Text(
+              'English Translation (IndicTrans2):',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -136,18 +110,18 @@ class _EditScreenState extends State<EditScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                targetText,
+                _englishTranslation,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 15,
                   color: Theme.of(context).colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
             const SizedBox(height: 20),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Done'),
+              child: const Text('Close'),
             ),
           ],
         ),
@@ -157,11 +131,9 @@ class _EditScreenState extends State<EditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isH2E = _mode == TranslationMode.hindiToEnglish;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Verify Extracted Text'),
+        title: const Text('Verify Hindi Text'),
         elevation: 1,
       ),
       body: SafeArea(
@@ -170,40 +142,53 @@ class _EditScreenState extends State<EditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Segmented Button to switch direction
-              SegmentedButton<TranslationMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: TranslationMode.hindiToEnglish,
-                    label: Text('Hindi → English'),
-                    icon: Icon(Icons.sync_alt),
-                  ),
-                  ButtonSegment(
-                    value: TranslationMode.englishToHindi,
-                    label: Text('English → Hindi'),
-                    icon: Icon(Icons.sync_alt),
-                  ),
-                ],
-                selected: {_mode},
-                onSelectionChanged: (newSelection) {
-                  _switchDirection(newSelection.first);
-                },
+              Container(
+                height: 140,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.file(
+                  widget.imageFile,
+                  fit: BoxFit.contain,
+                ),
               ),
               const SizedBox(height: 12),
               Card(
                 elevation: 0,
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                child: const Padding(
+                  padding: EdgeInsets.all(12.0),
                   child: Text(
-                    isH2E
-                        ? 'Tesseract OCR output may contain character ambiguities. Inspect and correct the Devanagari text before running machine translation.'
-                        : 'Inspect and verify extracted English text before running machine translation into Hindi.',
-                    style: const TextStyle(fontSize: 12),
+                    'Review the Devanagari text extracted from your cropped region. Human verification avoids translation hallucinations.',
+                    style: TextStyle(fontSize: 12),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
+              if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
               Expanded(
                 child: TextField(
                   controller: _textController,
@@ -211,7 +196,7 @@ class _EditScreenState extends State<EditScreen> {
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
                   decoration: InputDecoration(
-                    labelText: isH2E ? 'Extracted Hindi Text' : 'Extracted English Text',
+                    labelText: 'Devanagari OCR Text',
                     alignLabelWithHint: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -221,16 +206,34 @@ class _EditScreenState extends State<EditScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (_isTranslating)
+              if (_isLoading)
                 const Center(child: CircularProgressIndicator())
               else
-                FilledButton.icon(
-                  onPressed: _submitForTranslation,
-                  icon: const Icon(Icons.translate),
-                  label: Text(isH2E ? 'Translate to English' : 'Translate to Hindi'),
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _fetchOcrAndTranslation,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Retry OCR'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: _textController.text.trim().isEmpty
+                            ? null
+                            : _showTranslationModal,
+                        icon: const Icon(Icons.translate),
+                        label: const Text('View Result'),
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
             ],
           ),

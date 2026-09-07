@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
+enum TranslationMode { hindiToEnglish, englishToHindi }
+
 class EditScreen extends StatefulWidget {
   final File imageFile;
 
@@ -17,8 +19,9 @@ class EditScreen extends StatefulWidget {
 class _EditScreenState extends State<EditScreen> {
   final TextEditingController _textController = TextEditingController();
   bool _isLoading = false;
-  String _englishTranslation = '';
+  String _translatedText = '';
   String? _errorMessage;
+  TranslationMode _mode = TranslationMode.hindiToEnglish;
 
   @override
   void initState() {
@@ -47,19 +50,21 @@ class _EditScreenState extends State<EditScreen> {
       if (result.error != null && result.error!.isNotEmpty) {
         _errorMessage = result.error;
       } else if (result.hindiText.isEmpty) {
-        _errorMessage = 'No readable Hindi text was found. Please try another image or crop.';
+        _errorMessage = 'No readable text found. Please crop closer to the text.';
       } else {
         _textController.text = result.hindiText;
-        _englishTranslation = result.englishText;
+        _translatedText = result.englishText;
       }
     });
 
-    if (_errorMessage == null && _englishTranslation.isNotEmpty) {
+    if (_errorMessage == null && _translatedText.isNotEmpty) {
       _showTranslationModal();
     }
   }
 
   void _showTranslationModal() {
+    final isH2E = _mode == TranslationMode.hindiToEnglish;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -81,26 +86,23 @@ class _EditScreenState extends State<EditScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                 ),
-                const Chip(
-                  label: Text('Hindi → English'),
+                Chip(
+                  label: Text(isH2E ? 'Hindi → English' : 'English → Hindi'),
                   visualDensity: VisualDensity.compact,
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Extracted Hindi Text:',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            Text(
+              isH2E ? 'Source Text (Hindi):' : 'Source Text (English):',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
-            Text(
-              _textController.text,
-              style: const TextStyle(fontSize: 15),
-            ),
+            Text(_textController.text, style: const TextStyle(fontSize: 15)),
             const Divider(height: 24),
-            const Text(
-              'English Translation (IndicTrans2):',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            Text(
+              isH2E ? 'Translated Text (English):' : 'Translated Text (Hindi):',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             Container(
@@ -110,7 +112,7 @@ class _EditScreenState extends State<EditScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                _englishTranslation,
+                _translatedText,
                 style: TextStyle(
                   fontSize: 15,
                   color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -131,9 +133,11 @@ class _EditScreenState extends State<EditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isH2E = _mode == TranslationMode.hindiToEnglish;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Verify Hindi Text'),
+        title: const Text('Verify & Translate'),
         elevation: 1,
       ),
       body: SafeArea(
@@ -142,8 +146,27 @@ class _EditScreenState extends State<EditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              SegmentedButton<TranslationMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: TranslationMode.hindiToEnglish,
+                    label: Text('Hindi → English'),
+                  ),
+                  ButtonSegment(
+                    value: TranslationMode.englishToHindi,
+                    label: Text('English → Hindi'),
+                  ),
+                ],
+                selected: {_mode},
+                onSelectionChanged: (newSelection) {
+                  setState(() {
+                    _mode = newSelection.first;
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
               Container(
-                height: 140,
+                height: 130,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.grey.shade300),
@@ -155,21 +178,9 @@ class _EditScreenState extends State<EditScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Card(
-                elevation: 0,
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: const Padding(
-                  padding: EdgeInsets.all(12.0),
-                  child: Text(
-                    'Review the Devanagari text extracted from your cropped region. Human verification avoids translation hallucinations.',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
               if (_errorMessage != null)
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.red.shade50,
                     borderRadius: BorderRadius.circular(8),
@@ -177,18 +188,18 @@ class _EditScreenState extends State<EditScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: Colors.red),
+                      const Icon(Icons.error_outline, color: Colors.red, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _errorMessage!,
-                          style: const TextStyle(color: Colors.red, fontSize: 13),
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
                         ),
                       ),
                     ],
                   ),
                 ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               Expanded(
                 child: TextField(
                   controller: _textController,
@@ -196,7 +207,7 @@ class _EditScreenState extends State<EditScreen> {
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
                   decoration: InputDecoration(
-                    labelText: 'Devanagari OCR Text',
+                    labelText: isH2E ? 'Devanagari OCR Text' : 'English OCR Text',
                     alignLabelWithHint: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -205,7 +216,7 @@ class _EditScreenState extends State<EditScreen> {
                   style: const TextStyle(fontSize: 16),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               if (_isLoading)
                 const Center(child: CircularProgressIndicator())
               else
@@ -215,7 +226,7 @@ class _EditScreenState extends State<EditScreen> {
                       child: OutlinedButton(
                         onPressed: _fetchOcrAndTranslation,
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         child: const Text('Retry OCR'),
                       ),
@@ -229,7 +240,7 @@ class _EditScreenState extends State<EditScreen> {
                         icon: const Icon(Icons.translate),
                         label: const Text('View Result'),
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                       ),
                     ),

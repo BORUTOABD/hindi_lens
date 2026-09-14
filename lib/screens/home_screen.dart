@@ -13,124 +13,142 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ImagePicker _picker = ImagePicker();
-  bool _isProcessing = false;
 
-  Future<void> _pickAndCropImage(ImageSource source) async {
-    try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: source,
-        imageQuality: 90,
-      );
+  Future<void> _pickAndCrop(ImageSource source) async {
+    final XFile? picked = await _picker.pickImage(source: source);
+    if (picked == null) return;
 
-      // User cancelled picker
-      if (pickedFile == null) return;
+    final CroppedFile? cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Hindi Text Area',
+          toolbarColor: const Color(0xFF4A4E74),
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.original,
+          lockAspectRatio: false,
+        ),
+      ],
+    );
 
-      setState(() {
-        _isProcessing = true;
-      });
-
-      // Manual ROI Cropping step
-      final CroppedFile? croppedFile = await ImageCropper().cropImage(
-        sourcePath: pickedFile.path,
-        uiSettings: [
-          AndroidUiSettings(
-            toolbarTitle: 'Crop Hindi Text Area',
-            toolbarColor: Theme.of(context).colorScheme.primary,
-            toolbarWidgetColor: Colors.white,
-            initAspectRatio: CropAspectRatioPreset.original,
-            lockAspectRatio: false,
-          ),
-          IOSUiSettings(
-            title: 'Crop Hindi Text Area',
-          ),
-        ],
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _isProcessing = false;
-      });
-
-      // User cancelled cropping
-      if (croppedFile == null) return;
-
-      Navigator.of(context).push(
+    if (cropped != null && mounted) {
+      Navigator.push(
+        context,
         MaterialPageRoute(
           builder: (context) => EditScreen(
-            imageFile: File(croppedFile.path),
+            imageFile: File(cropped.path),
+            initialMode: 'hi-en',
           ),
         ),
       );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isProcessing = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load image: $e')),
-      );
     }
+  }
+
+  void _openDirectTextInput() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const EditScreen(
+          imageFile: null,
+          initialMode: 'en-hi',
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HindiLens'),
+        title: const Text(
+          'HindiLens',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
-        elevation: 1,
       ),
       body: SafeArea(
-        child: _isProcessing
-            ? const Center(child: CircularProgressIndicator())
-            : Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Icon(
-                      Icons.translate,
-                      size: 80,
-                      color: Colors.blueAccent,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(),
+              const Icon(
+                Icons.translate,
+                size: 80,
+                color: Color(0xFF4285F4),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Translate Hindi & English',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Capture or pick an image to translate, or directly type English text.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () => _pickAndCrop(ImageSource.camera),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4A4E74),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
                     ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Translate Hindi from Images',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Capture or pick an image with Hindi text, crop the text region, and translate it to English.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
-                          ),
-                    ),
-                    const SizedBox(height: 48),
-                    FilledButton.icon(
-                      onPressed: () => _pickAndCropImage(ImageSource.camera),
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Take a Photo'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: () => _pickAndCropImage(ImageSource.gallery),
-                      icon: const Icon(Icons.photo_library),
-                      label: const Text('Choose from Gallery'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                  ],
+                  ),
+                  icon: const Icon(Icons.camera_alt),
+                  label: const Text('Take a Photo', style: TextStyle(fontSize: 16)),
                 ),
               ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickAndCrop(ImageSource.gallery),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFF4A4E74)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  icon: const Icon(Icons.photo_library, color: Color(0xFF4A4E74)),
+                  label: const Text(
+                    'Choose from Gallery',
+                    style: TextStyle(color: Color(0xFF4A4E74), fontSize: 16),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: TextButton.icon(
+                  onPressed: _openDirectTextInput,
+                  style: TextButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                      side: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  icon: const Icon(Icons.keyboard, color: Color(0xFF4A4E74)),
+                  label: const Text(
+                    'Type English Directly (No Image)',
+                    style: TextStyle(color: Color(0xFF4A4E74), fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
       ),
     );
   }

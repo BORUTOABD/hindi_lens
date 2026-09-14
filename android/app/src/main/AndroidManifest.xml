@@ -4,9 +4,10 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="hindi_lens"
+        android:label="HindiLens"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">        
         <activity
             android:name=".MainActivity"
             android:exported="true"
